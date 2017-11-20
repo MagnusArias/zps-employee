@@ -9,4 +9,8 @@ import lombok.Setter;
 @AllArgsConstructor
 public class TestMessage {
     private String msg;
+
+    public TestMessage(String s) {
+
+    }
 }
