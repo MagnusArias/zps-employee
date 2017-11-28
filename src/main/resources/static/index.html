@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="databaseApp">
+<head>
+    <meta charset="UTF-8">
+    <title>Employee database</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.6.5/angular.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-filter/0.5.17/angular-filter.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-ui-bootstrap/2.5.0/ui-bootstrap.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-ui-bootstrap/2.5.0/ui-bootstrap-tpls.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.1.4/sockjs.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.js"></script>
+    <script type="text/javascript">
+        angular.module('databaseApp', ['angular.filter', 'ui.bootstrap'])
+            .service('RestService', function($http) {
+                var baseUrl = '';
+                var database = '/database';
+
+                this.getTableName = function() {
+                    return $http.get(baseUrl + database + '/table/list');
+                };
+
+                this.findQuery = function(query) {
+                    return $http.get(baseUrl + database + '/query/' + query);
+                }
+            })
+            .controller('databaseCtrl', function($scope, RestService, $uibModal) {
+
+                $scope.initView = function() {
+                    $scope.convertUrl = true;
+
+                    refreshTableName();
+                };
+
+                function refreshTableName() {
+                    RestService.getTableName()
+                        .then(function(response) {
+                            console.log('res', response);
+                            $scope.tableMetadata = response.data;
+                        }).catch(function(response) {
+                            console.log('error', response);
+                        })
+                }
+
+                $scope.findQuery = function(query) {
+                    if(query.length > 10) {
+                        $scope.searchQuery = query;
+
+                        $scope.resultQuery = null;
+                        $scope.resultError = null;
+                        var q = angular.copy(query);
+
+                        if($scope.convertUrl) {
+                            q = q.replace('%', '%25');
+                        }
+
+                        RestService.findQuery(q)
+                            .then(function(response) {
+                                console.log('res', response);
+                                $scope.resultQuery = response.data.results;
+
+                                if(response.data.results.length > 0) {
+                                    $scope.resultQueryColumns = checkColumns(response.data.results[0]);
+                                }
+
+                                getQueryData(query);
+                            }).catch(function(response) {
+                                console.log('error', response);
+                                if(response.status === 400) {
+                                    $scope.resultError = {
+                                        error: 'Error',
+                                        status: response.status
+                                    }
+                                } else {
+                                    $scope.resultError = response.data;
+                                }
+                                console.log('err', $scope.resultError);
+                            })
+                    }
+                };
+
+                function checkColumns(row) {
+                    return Object.keys(row);
+                }
+
+                function getQueryData(query) {
+                    console.log('t', angular.copy(query).replace(/\s/g, ''));
+                    var q = angular.copy(query).replace(/\s/g, '');
+                    var finish = q.length;
+                    if(q.indexOf('where') !== -1) {
+                        finish = q.indexOf('where');
+                    }
+                    var table = q.substring(q.indexOf('from') + 4, finish);
+
+                    $scope.tableName = table;
+                }
+
+                $scope.getProperty = function(result, index) {
+                    return result[$scope.resultQueryColumns[index]];
+                };
+
+                $scope.deleteItem = function(index) {
+                    console.log('Item deleting', index);
+                    if(confirm('Are you sure?')) {
+
+                    }
+                };
+
+                $scope.addItem = function() {
+                    $scope.openAddModal();
+                };
+
+                $scope.toLower = function(text) {
+                    return text.toLowerCase();
+                };
+
+                $scope.openAddModal = function(tableName) {
+                    $uibModal.open({
+                        size: 'lg',
+                        templateUrl: 'addModal.html',
+                        controller: function($scope, $uibModalInstance, RestService) {
+
+                            $scope.tableName = tableName;
+
+                            $scope.submit = function() {
+
+                            };
+
+                            $scope.cancel = function() {
+                                $uibModalInstance.dismiss('cancel');
+                            };
+                        }
+                    });
+                }
+            });
+
+    </script>
+    <style type="text/css">
+        .isClickable:hover {
+            cursor: pointer;
+        }
+
+        .tableHeader:hover {
+            background: #636940;
+            color: white;
+        }
+    </style>
+</head>
+<body ng-controller="databaseCtrl">
+<div class="well" style="height: 50px; width: 100vw; position: fixed; top: 0; left: 0;
+z-index: 2; box-shadow: 2px 2px 5px 0px rgba(0,0,0,0.75);">
+    <div style="display: inline-block; float: right;">
+        Logout
+        <i class="glyphicon glyphicon-log-out"></i>
+    </div>
+</div>
+<div class="well" style="height: 100vh; width: 300px; position: fixed; top: 0; left: 0; margin-top: 50px; z-index: 1;">
+    <div class="panel panel-default" data-ng-init="isCollapsedTables = false">
+        <div class="panel-heading isClickable tableHeader"
+             data-ng-click="isCollapsedTables = !isCollapsedTables">
+            <h3 class="panel-title">Tables in database</h3>
+        </div>
+        <div class="panel-body" uib-collapse="isCollapsedTables">
+            <div data-ng-repeat="(tableName, tableColumns) in tableMetadata | groupBy: 'tableName'">
+                <span data-ng-bind="tableName" style="font-weight: bold;"></span>
+                <button class="btn btn-primary"
+                        data-ng-click="findQuery('select * from ' + toLower(tableName))">Show</button>
+                <ul data-ng-repeat="tableColumn in tableColumns">
+                    <li data-ng-bind="tableColumn.columnName"></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="jumbotron" style="padding-top: 75px; padding-left: 300px; position: absolute; width: 100%; height: 90%;"
+     data-ng-init="initView()">
+    <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+        <span style="font-weight: bold">Select query:</span>
+    </div>
+    <div class="col-lg-8 col-md-8 col-sm-8 col-xs-8">
+        <input type="text"
+               class="form-control"
+               data-ng-init="searchQuery = 'select * from test_messages'"
+               placeholder="select * from Employee"
+               data-ng-model="searchQuery"/>
+    </div>
+    <div class="col-lg-4 col-md-4 col-sm-4 col-xs-4">
+        <button class="btn btn-primary" data-ng-click="findQuery(searchQuery)">Search</button>
+        <input type="checkbox" data-ng-model="convertUrl"/>Convert url to unicode
+    </div>
+    <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12" style="padding-top: 15px;">
+        <span style="font-weight: bold">Result:</span>
+    </div>
+    <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12" style="height: 100%; padding: 15px;">
+        <div data-ng-show="resultError">
+            <span style="font-weight: bold">Error: </span>
+            <span data-ng-bind="resultError.error"></span>
+            <br />
+            <span style="font-weight: bold">HTTP Status: </span>
+            <span data-ng-bind="resultError.status"></span>
+            <br />
+            <span data-ng-show="resultError.exception" style="font-weight: bold">Exception: </span>
+            <span data-ng-bind="resultError.exception"></span>
+            <br />
+            <span data-ng-show="resultError.message" style="font-weight: bold">Message: </span>
+            <span data-ng-bind="resultError.message"></span>
+            <br />
+        </div>
+        <div data-ng-show="resultQuery.length === 0 ">
+            <span>No results</span>
+        </div>
+        <div style="text-align: center;" data-ng-show="resultQuery.length > 0 ">
+            <span style="font-weight: bold" data-ng-bind="tableName"></span>
+        </div>
+        <table class="table table-bordered"
+               data-ng-show="resultQuery.length > 0 ">
+            <tr>
+                <th data-ng-repeat="column in resultQueryColumns">
+                    <span data-ng-bind="column"></span>
+                </th>
+                <th>Action</th>
+            </tr>
+            <tr data-ng-repeat="result in resultQuery">
+                <td data-ng-repeat="temp in resultQueryColumns">
+                    <span data-ng-bind="getProperty(result, $index)"></span>
+                </td>
+                <td>
+                    <button class="btn btn-info"
+                            data-ng-click="editItem($index)">Edit</button>
+                    <button class="btn btn-danger"
+                            data-ng-click="deleteItem($index)">Delete</button>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="100%">
+                    <button class="btn btn-primary"
+                            data-ng-click="addItem()">Add</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+</body>
+</html>

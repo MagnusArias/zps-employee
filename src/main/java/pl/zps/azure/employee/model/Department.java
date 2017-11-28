@@ -9,13 +9,13 @@ import javax.persistence.*;
 @NoArgsConstructor
 @RequiredArgsConstructor
 @Entity
-@Table(name = "TestMessages")
-public class TestMessage {
+@Table(name = "department")
+public class Department {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private long id;
-
     @NonNull
-    private String msg;
+    private String name;
+
 }
