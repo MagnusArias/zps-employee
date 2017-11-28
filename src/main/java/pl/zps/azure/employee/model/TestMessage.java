@@ -18,4 +18,8 @@ public class TestMessage {
 
     @NonNull
     private String msg;
+
+    public TestMessage(String s) {
+
+    }
 }
