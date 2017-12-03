@@ -14,8 +14,28 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.1.4/sockjs.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-growl-2/0.7.9/angular-growl.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/angular-growl-2/0.7.9/angular-growl.css">
+
     <script type="text/javascript">
-        angular.module('databaseApp', ['angular.filter', 'ui.bootstrap'])
+        angular.module('databaseApp', ['angular.filter', 'ui.bootstrap', 'angular-growl'])
+            .config(['growlProvider', function(growlProvider) {
+                //growlProvider.onlyUniqueMessages(false);
+                growlProvider.globalDisableCountDown(true);
+                growlProvider.globalPosition('top-center');
+            }])
+            .service('GrowlService', function(growl) {
+                this.showGrowl = function(type, msg, time) {
+                    var config = {
+                        ttl: 3000
+                    };
+                    if(!angular.isUndefined(time)) {
+                        config.ttl = time;
+                    }
+                    growl[type](msg, config);
+                }
+            })
             .service('RestService', function($http) {
                 var baseUrl = '';
                 var database = '/database';
@@ -26,15 +46,88 @@
 
                 this.findQuery = function(query) {
                     return $http.get(baseUrl + database + '/query/' + query);
-                }
+                };
+
+                this.updateQuery = function(statement) {
+                    return $http.post(baseUrl + database + '/execute/update', statement);
+                };
+
+                this.deleteQuery = function(statement) {
+                    return $http.post(baseUrl + database + '/execute/delete', statement);
+                };
+
+                this.insertQuery = function(statement) {
+                    return $http.post(baseUrl + database + '/execute/insert', statement);
+                };
             })
-            .controller('databaseCtrl', function($scope, RestService, $uibModal) {
+            .service('WebSocketService', function($rootScope) {
+                var stompClient = null;
+
+                this.connect = function() {
+                    var socket = new SockJS('/websocket/event');
+                    stompClient = Stomp.over(socket);
+
+                    stompClient.connect({}, function(frame) {
+                        console.log('Connected: ' + frame);
+                        stompClient.subscribe('/database/change', function(messageOutput) {
+                            var msg = JSON.parse(messageOutput.body);
+
+                            $rootScope.$broadcast('database-changed', msg);
+
+                        });
+
+                    });
+                };
+
+                this.disconnect = function() {
+                    if(stompClient != null) {
+                        stompClient.disconnect();
+                    }
+                    setConnected(false);
+                    console.log("Disconnected");
+                };
+
+                this.sendMessage = function(tableName) {
+                    stompClient.send("/database/change", {},
+                        JSON.stringify({'tableName': tableName}));
+                };
+            })
+            .controller('databaseCtrl', function($scope, RestService, $uibModal, WebSocketService, GrowlService) {
 
                 $scope.initView = function() {
                     $scope.convertUrl = true;
 
                     refreshTableName();
+
+                    WebSocketService.connect();
                 };
+
+                $scope.$on('$destroy', function() {
+                    WebSocketService.disconnect();
+                });
+
+                $scope.$on('database-changed', function(ev, message) {
+                    console.log('info', message, $scope.tableName);
+                    if(message.tableName === $scope.tableName) {
+                        if(isEditMode()) {
+                            GrowlService.showGrowl('info', 'There is a change. You got edit mode. Refresh manual.', 5000);
+                        } else {
+                            $scope.findQuery($scope.searchQuery, true);
+                            $scope.$apply();
+                        }
+                    } else {
+                        GrowlService.showGrowl('info', 'There is a change in the table ' + message.tableName, 5000);
+                    }
+                });
+
+                function isEditMode() {
+                    for(var i = 0; i < $scope.resultQuery.length; i++) {
+                        if($scope.resultQuery[i].editMode) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
 
                 function refreshTableName() {
                     RestService.getTableName()
@@ -46,8 +139,10 @@
                         })
                 }
 
-                $scope.findQuery = function(query) {
+                $scope.findQuery = function(query, fromDatabaseChange) {
                     if(query.length > 10) {
+                        $scope.addMode = false;
+                        $scope.newModel = {};
                         $scope.searchQuery = query;
 
                         $scope.resultQuery = null;
@@ -55,19 +150,29 @@
                         var q = angular.copy(query);
 
                         if($scope.convertUrl) {
-                            q = q.replace('%', '%25');
+                            q = encodeURIComponent(q);
                         }
 
                         RestService.findQuery(q)
                             .then(function(response) {
-                                console.log('res', response);
                                 $scope.resultQuery = response.data.results;
+
+                                console.log('cres', $scope.resultQuery);
+                                getQueryData(query);
 
                                 if(response.data.results.length > 0) {
                                     $scope.resultQueryColumns = checkColumns(response.data.results[0]);
+                                } else {
+                                    $scope.resultQueryColumns = getColumnsFromMetadata($scope.tableName);
                                 }
 
-                                getQueryData(query);
+                                console.log('col', $scope.resultQueryColumns);
+
+                                if(angular.isUndefined(fromDatabaseChange)) {
+                                    GrowlService.showGrowl('success', 'Successful operation');
+                                } else {
+                                    GrowlService.showGrowl('info', 'Table is refreshed from server changes', 4000);
+                                }
                             }).catch(function(response) {
                                 console.log('error', response);
                                 if(response.status === 400) {
@@ -83,12 +188,23 @@
                     }
                 };
 
+                function getColumnsFromMetadata(tableName) {
+                    for(var i = 0; i < $scope.tableMetadata.length; i++) {
+                        if($scope.tableMetadata[i].name === tableName) {
+                            var cols = [];
+                            for(var j = 0; j < $scope.tableMetadata[i].column.length; j++) {
+                                cols.push($scope.tableMetadata[i].column[j].name);
+                            }
+                            return cols;
+                        }
+                    }
+                }
+
                 function checkColumns(row) {
                     return Object.keys(row);
                 }
 
                 function getQueryData(query) {
-                    console.log('t', angular.copy(query).replace(/\s/g, ''));
                     var q = angular.copy(query).replace(/\s/g, '');
                     var finish = q.length;
                     if(q.indexOf('where') !== -1) {
@@ -99,34 +215,248 @@
                     $scope.tableName = table;
                 }
 
-                $scope.getProperty = function(result, index) {
-                    return result[$scope.resultQueryColumns[index]];
-                };
+//                $scope.getProperty = function(result, index) {
+//                    return result[$scope.resultQueryColumns[index]];
+//                };
 
                 $scope.deleteItem = function(index) {
-                    console.log('Item deleting', index);
-                    if(confirm('Are you sure?')) {
-
-                    }
+                    $scope.openDeleteModal($scope.tableName, $scope.resultQuery[index].id, createStatement('delete', index));
                 };
+
+                function createStatement(type, index) {
+                    var statement = null;
+
+                    statement = statementStartPart(type);
+
+                    statement += $scope.tableName;
+
+                    statement += statementEndPart(type, index);
+
+                    console.log('statement', statement);
+
+                    return statement;
+                }
+
+                function statementEndPart(type, index) {
+                    var endPart = ' ';
+                    switch(type) {
+                        case 'delete':
+                            endPart += statementWherePart(index);
+                            break;
+                        case 'edit':
+                            endPart += statementSetPart(index);
+                            endPart += statementWherePart(index);
+                            break;
+                        case 'add':
+                            endPart += statementColumnPart();
+                            endPart += statementValuesPart();
+                            break;
+                    }
+
+                    return endPart;
+                }
+
+                function statementColumnPart() {
+                    var columnPart = '(';
+                    for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
+                        if($scope.resultQueryColumns[i] !== 'id') {
+                            columnPart += $scope.resultQueryColumns[i];
+
+                            columnPart += i !== ($scope.resultQueryColumns.length - 1) ?  ', ' : ') ';
+                        }
+                    }
+                    return columnPart;
+                }
+
+                function statementValuesPart() {
+                    var valuesPart = 'VALUES (';
+                    for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
+                        if($scope.resultQueryColumns[i] !== 'id') {
+                            var value = $scope.newModel[$scope.resultQueryColumns[i]];
+                            if(checkIfColumnIsString(i)) {
+                                value = '"' + value + '"';
+                            } else {
+                                value = Number(value);
+                            }
+
+                            valuesPart += value;
+
+                            valuesPart += i !== ($scope.resultQueryColumns.length - 1) ?  ', ' : ');';
+                        }
+                    }
+                    return valuesPart;
+                }
+
+                function statementSetPart(index) {
+                    var setPart = 'SET ';
+                    var item = $scope.resultQuery[index].model;
+                    for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
+                        if($scope.resultQueryColumns[i] !== 'id') {
+                            var column = $scope.resultQueryColumns[i];
+
+                            column += '=';
+
+                            var value = item[$scope.resultQueryColumns[i]];
+                            if(checkIfColumnIsString(i)) {
+                                column += '"' + value + '"';
+                            } else {
+                                column += value;
+                            }
+
+                            column += i !== ($scope.resultQueryColumns.length - 1) ?  ', ' : ' ';
+
+                            setPart += column;
+                        }
+                    }
+                    return setPart;
+                }
+
+                function statementWherePart(index) {
+                    var wherePart = 'WHERE ';
+                    var item = $scope.resultQuery[index];
+                    for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
+                        var condition = $scope.resultQueryColumns[i];
+
+                        condition += '=';
+
+                        var value = item[$scope.resultQueryColumns[i]];
+                        if(checkIfColumnIsString(i)) {
+                            condition += '"' + value + '"';
+                        } else {
+                            condition += value;
+                        }
+
+                        condition += i !== ($scope.resultQueryColumns.length - 1) ?  ' AND ' : ';';
+
+                        wherePart += condition;
+                    }
+                    return wherePart;
+                }
+
+                function checkIfColumnIsString(index) {
+                    var STRING_CONST = 12;
+                    for(var i = 0; i < $scope.tableMetadata.length; i++) {
+                        if($scope.tableMetadata[i].name === $scope.tableName) {
+                            for(var j = 0; j < $scope.tableMetadata[i].column.length; j++) {
+                                if($scope.tableMetadata[i].column[j].name === $scope.resultQueryColumns[index]) {
+                                    return $scope.tableMetadata[i].column[j].type === STRING_CONST;
+                                }
+                            }
+                        }
+                    }
+                    return false;
+                }
+
+                function statementStartPart(type) {
+                    switch(type) {
+                        case 'delete':
+                            return 'DELETE FROM ';
+                        case 'edit':
+                            return 'UPDATE ';
+                        case 'add':
+                            return 'INSERT INTO ';
+                    }
+                }
+
+                $scope.editItem = function (index) {
+//                    if($scope.resultQuery[index].editMode) {
+//                        $scope.resultQuery[index].editMode = false;
+//                    } else {
+                        $scope.resultQuery[index].editMode = true;
+                        $scope.resultQuery[index].model = angular.copy($scope.resultQuery[index]);
+//                    }
+                };
+
+                $scope.submitEditItem = function(index) {
+                    var statement = createStatement('edit', index);
+
+                    RestService.updateQuery(statement)
+                        .then(function(response) {
+                            console.log('res', response);
+
+                            informAboutChange(response);
+
+                            GrowlService.showGrowl('success', 'Successful operation');
+                        }).catch(function(response) {
+                            console.log('error', response);
+                        });
+
+                    resetEditMode(false, index);
+                };
+
+                $scope.discardEditItem = function(index) {
+                    resetEditMode(false, index);
+                };
+
+                function resetEditMode(isEditMode, index) {
+                    $scope.resultQuery[index].editMode = isEditMode;
+                    $scope.resultQuery[index].model = {};
+                }
 
                 $scope.addItem = function() {
-                    $scope.openAddModal();
+                    resetAddMode(true);
                 };
+
+                $scope.submitNewItem = function() {
+                    var statement = createStatement('add');
+
+                    RestService.insertQuery(statement)
+                        .then(function(response) {
+                            console.log('res', response);
+
+                            informAboutChange(response);
+
+                            GrowlService.showGrowl('success', 'Successful operation');
+                        }).catch(function(response) {
+                        console.log('error', response);
+                    });
+
+                    resetAddMode(false);
+                };
+
+                function informAboutChange(response) {
+                    if(response) {
+                        WebSocketService.sendMessage($scope.tableName);
+                    }
+                }
+
+                $scope.discardNewItem = function() {
+                    resetAddMode(false);
+                };
+
+                function resetAddMode(isAddMode) {
+                    $scope.addMode = isAddMode;
+                    $scope.newModel = {};
+                }
 
                 $scope.toLower = function(text) {
                     return text.toLowerCase();
                 };
 
-                $scope.openAddModal = function(tableName) {
+                $scope.openDeleteModal = function(tableName, id, deleteStatement) {
                     $uibModal.open({
                         size: 'lg',
-                        templateUrl: 'addModal.html',
-                        controller: function($scope, $uibModalInstance, RestService) {
+                        templateUrl: 'deleteModal.html',
+                        controller: function($scope, $uibModalInstance, RestService, GrowlService) {
 
                             $scope.tableName = tableName;
+                            $scope.id = id;
 
                             $scope.submit = function() {
+                                RestService.deleteQuery(deleteStatement)
+                                    .then(function(response) {
+                                        console.log('res', response);
+
+                                        informAboutChange(response);
+
+                                        GrowlService.showGrowl('success', 'Successful operation');
+
+                                        $uibModalInstance.close();
+                                    }).catch(function(response) {
+                                        console.log('error', response);
+
+                                        GrowlService.showGrowl('error', 'Error. Something gone wrong.');
+                                    });
 
                             };
 
@@ -148,16 +478,26 @@
             background: #636940;
             color: white;
         }
+
+        .hoverResultRow:hover {
+            background: #9DC5BB !important;
+        }
     </style>
 </head>
 <body ng-controller="databaseCtrl">
-<div class="well" style="height: 50px; width: 100vw; position: fixed; top: 0; left: 0;
-z-index: 2; box-shadow: 2px 2px 5px 0px rgba(0,0,0,0.75);">
+<div growl></div>
+<!-- GROWL -->
+
+<div class="well"
+     style="height: 50px; width: 100vw; position: fixed; top: 0; left: 0;
+            z-index: 2; box-shadow: 2px 2px 5px 0px rgba(0,0,0,0.75);">
     <div style="display: inline-block; float: right;">
         Logout
         <i class="glyphicon glyphicon-log-out"></i>
     </div>
 </div>
+<!-- HEADER MENU -->
+
 <div class="well" style="height: 100vh; width: 300px; position: fixed; top: 0; left: 0; margin-top: 50px; z-index: 1;">
     <div class="panel panel-default" data-ng-init="isCollapsedTables = false">
         <div class="panel-heading isClickable tableHeader"
@@ -165,34 +505,41 @@ z-index: 2; box-shadow: 2px 2px 5px 0px rgba(0,0,0,0.75);">
             <h3 class="panel-title">Tables in database</h3>
         </div>
         <div class="panel-body" uib-collapse="isCollapsedTables">
-            <div data-ng-repeat="(tableName, tableColumns) in tableMetadata | groupBy: 'tableName'">
-                <span data-ng-bind="tableName" style="font-weight: bold;"></span>
+            <div data-ng-repeat="table in tableMetadata">
                 <button class="btn btn-primary"
-                        data-ng-click="findQuery('select * from ' + toLower(tableName))">Show</button>
-                <ul data-ng-repeat="tableColumn in tableColumns">
-                    <li data-ng-bind="tableColumn.columnName"></li>
+                        data-ng-click="findQuery('select * from ' + toLower(table.name))">Show</button>
+                <span data-ng-bind="table.name" style="font-weight: bold;"></span>
+                <ul data-ng-repeat="column in table.column">
+                    <li data-ng-bind="column.name"></li>
                 </ul>
             </div>
         </div>
     </div>
 </div>
+<!-- LEFT MENU - TABLES -->
 
-<div class="jumbotron" style="padding-top: 75px; padding-left: 300px; position: absolute; width: 100%; height: 90%;"
+<div class="jumbotron"
+     style="padding-top: 75px; padding-left: 300px; position: absolute; width: 100%; height: 90%;"
      data-ng-init="initView()">
     <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
         <span style="font-weight: bold">Select query:</span>
     </div>
     <div class="col-lg-8 col-md-8 col-sm-8 col-xs-8">
         <input type="text"
+               id="searchQueryInput"
                class="form-control"
                data-ng-init="searchQuery = 'select * from test_messages'"
                placeholder="select * from Employee"
                data-ng-model="searchQuery"/>
     </div>
+    <!-- SELECT INPUT -->
+
     <div class="col-lg-4 col-md-4 col-sm-4 col-xs-4">
         <button class="btn btn-primary" data-ng-click="findQuery(searchQuery)">Search</button>
-        <input type="checkbox" data-ng-model="convertUrl"/>Convert url to unicode
+        <input type="checkbox" data-ng-model="convertUrl"/>Convert to URI
     </div>
+
+
     <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12" style="padding-top: 15px;">
         <span style="font-weight: bold">Result:</span>
     </div>
@@ -211,38 +558,73 @@ z-index: 2; box-shadow: 2px 2px 5px 0px rgba(0,0,0,0.75);">
             <span data-ng-bind="resultError.message"></span>
             <br />
         </div>
-        <div data-ng-show="resultQuery.length === 0 ">
-            <span>No results</span>
+        <!-- ERROR RESULTS -->
+
+        <div style="text-align: center;">
+            <h2><span style="font-weight: bold" data-ng-bind="tableName"></span></h2>
         </div>
-        <div style="text-align: center;" data-ng-show="resultQuery.length > 0 ">
-            <span style="font-weight: bold" data-ng-bind="tableName"></span>
-        </div>
-        <table class="table table-bordered"
-               data-ng-show="resultQuery.length > 0 ">
+        <table class="table table-bordered table-striped"
+               style="background: #DDDBCB"
+               data-ng-show="resultQuery">
             <tr>
                 <th data-ng-repeat="column in resultQueryColumns">
                     <span data-ng-bind="column"></span>
                 </th>
                 <th>Action</th>
             </tr>
-            <tr data-ng-repeat="result in resultQuery">
-                <td data-ng-repeat="temp in resultQueryColumns">
-                    <span data-ng-bind="getProperty(result, $index)"></span>
+            <tr data-ng-show="resultQuery.length === 0">
+                <td colspan="100%">
+                    <span>No results</span>
+                </td>
+            </tr>
+            <tr data-ng-repeat="result in resultQuery"
+                class="hoverResultRow">
+                <td data-ng-repeat="col in resultQueryColumns">
+                    <span data-ng-show="!result.editMode || col === 'id'"
+                          data-ng-bind="result[col]"></span>
+
+                    <input class="form-control"
+                           data-ng-show="result.editMode && col !== 'id'"
+                           data-ng-init="result.model[col] = result[col]"
+                           data-ng-model="result.model[col]"/>
                 </td>
                 <td>
                     <button class="btn btn-info"
+                            data-ng-show="result.editMode"
+                            data-ng-click="submitEditItem($index)">Submit changes</button>
+                    <button class="btn btn-warning"
+                            data-ng-show="result.editMode"
+                            data-ng-click="discardEditItem($index)">Discard changes</button>
+                    <button class="btn btn-info"
+                            data-ng-show="!result.editMode"
                             data-ng-click="editItem($index)">Edit</button>
                     <button class="btn btn-danger"
                             data-ng-click="deleteItem($index)">Delete</button>
                 </td>
             </tr>
-            <tr>
-                <td colspan="100%">
+            <tr style="background: #FFF;">
+                <td colspan="100%"
+                    data-ng-show="!addMode">
                     <button class="btn btn-primary"
                             data-ng-click="addItem()">Add</button>
                 </td>
+                <td data-ng-show="addMode"
+                    data-ng-repeat="col in resultQueryColumns">
+
+                    <input class="form-control"
+                           data-ng-show="col !== 'id'"
+                           data-ng-init="newModel[col] = ''"
+                           data-ng-model="newModel[col]"/>
+                </td>
+                <td data-ng-show="addMode">
+                    <button class="btn btn-info"
+                            data-ng-click="submitNewItem()">Add row</button>
+                    <button class="btn btn-warning"
+                            data-ng-click="discardNewItem()">Discard row</button>
+                </td>
             </tr>
         </table>
+        <!-- OK RESULTS -->
     </div>
 </div>
 </body>

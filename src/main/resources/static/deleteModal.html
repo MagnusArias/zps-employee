@@ -1,0 +1,18 @@
+<div class="modal-header">
+    Delete modal
+</div>
+
+<div class="modal-body">
+    <span data-ng-bind="'Are you sure to delete item'"></span>
+    <span style="font-weight: bold;" data-ng-bind="'(id=' + id +')'"></span>
+    <span data-ng-bind="'from '"></span>
+    <span style="font-weight: bold;" data-ng-bind="tableName"></span>
+    <span data-ng-bind="' table?'"></span>
+</div>
+
+<div class="modal-footer">
+    <button class="btn btn-info"
+            data-ng-click="submit()">Submit</button>
+    <button class="btn btn-warnign"
+            data-ng-click="cancel()">Cancel</button>
+</div>

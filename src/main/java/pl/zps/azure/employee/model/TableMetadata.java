@@ -1,35 +1,18 @@
 package pl.zps.azure.employee.model;
 
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
-import javax.persistence.*;
-import java.io.Serializable;
+import java.util.List;
 
-@Entity
-@IdClass(TableMetadata.TableMetadataKey.class)
-@Table(name = "table_metadata")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class TableMetadata {
-    @Column(name = "table_name")
-    @Id
-    String tableName;
 
-    @Column(name = "column_name")
-    @Id
-    String columnName;
+    String name;
 
-
-    public static class TableMetadataKey implements Serializable {
-        String columnName;
-        String tableName;
-    }
-
+    List<ColumnMetadata> column;
 
 }
