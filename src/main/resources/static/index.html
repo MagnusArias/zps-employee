@@ -108,7 +108,7 @@
 
                 $scope.$on('database-changed', function(ev, message) {
                     console.log('info', message, $scope.tableName);
-                    if(message.tableName === $scope.tableName) {
+                    if(message.tableName.toLowerCase() === $scope.tableName.toLowerCase()) {
                         if(isEditMode()) {
                             GrowlService.showGrowl('info', 'There is a change. You got edit mode. Refresh manual.', 5000);
                         } else {
@@ -190,7 +190,8 @@
 
                 function getColumnsFromMetadata(tableName) {
                     for(var i = 0; i < $scope.tableMetadata.length; i++) {
-                        if($scope.tableMetadata[i].name === tableName) {
+                        console.log('sprawdzam',$scope.tableMetadata[i].name, tableName)
+                        if($scope.tableMetadata[i].name.toLowerCase() === tableName.toLowerCase()) {
                             var cols = [];
                             for(var j = 0; j < $scope.tableMetadata[i].column.length; j++) {
                                 cols.push($scope.tableMetadata[i].column[j].name);
@@ -214,10 +215,6 @@
 
                     $scope.tableName = table;
                 }
-
-//                $scope.getProperty = function(result, index) {
-//                    return result[$scope.resultQueryColumns[index]];
-//                };
 
                 $scope.deleteItem = function(index) {
                     $scope.openDeleteModal($scope.tableName, $scope.resultQuery[index].id, createStatement('delete', index));
@@ -259,7 +256,7 @@
                 function statementColumnPart() {
                     var columnPart = '(';
                     for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
-                        if($scope.resultQueryColumns[i] !== 'id') {
+                        if($scope.resultQueryColumns[i].toLowerCase() !== 'id') {
                             columnPart += $scope.resultQueryColumns[i];
 
                             columnPart += i !== ($scope.resultQueryColumns.length - 1) ?  ', ' : ') ';
@@ -271,10 +268,10 @@
                 function statementValuesPart() {
                     var valuesPart = 'VALUES (';
                     for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
-                        if($scope.resultQueryColumns[i] !== 'id') {
+                        if($scope.resultQueryColumns[i].toLowerCase() !== 'id') {
                             var value = $scope.newModel[$scope.resultQueryColumns[i]];
                             if(checkIfColumnIsString(i)) {
-                                value = '"' + value + '"';
+                                value = createWithMarks(value);
                             } else {
                                 value = Number(value);
                             }
@@ -287,18 +284,22 @@
                     return valuesPart;
                 }
 
+                function createWithMarks(value) {
+                    return '\'' + value + '\'';
+                }
+
                 function statementSetPart(index) {
                     var setPart = 'SET ';
                     var item = $scope.resultQuery[index].model;
                     for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
-                        if($scope.resultQueryColumns[i] !== 'id') {
+                        if($scope.resultQueryColumns[i].toLowerCase() !== 'id') {
                             var column = $scope.resultQueryColumns[i];
 
                             column += '=';
 
                             var value = item[$scope.resultQueryColumns[i]];
                             if(checkIfColumnIsString(i)) {
-                                column += '"' + value + '"';
+                                column += createWithMarks(value);
                             } else {
                                 column += value;
                             }
@@ -321,7 +322,7 @@
 
                         var value = item[$scope.resultQueryColumns[i]];
                         if(checkIfColumnIsString(i)) {
-                            condition += '"' + value + '"';
+                            condition += createWithMarks(value);
                         } else {
                             condition += value;
                         }
@@ -336,9 +337,9 @@
                 function checkIfColumnIsString(index) {
                     var STRING_CONST = 12;
                     for(var i = 0; i < $scope.tableMetadata.length; i++) {
-                        if($scope.tableMetadata[i].name === $scope.tableName) {
+                        if($scope.tableMetadata[i].name.toLowerCase() === $scope.tableName.toLowerCase()) {
                             for(var j = 0; j < $scope.tableMetadata[i].column.length; j++) {
-                                if($scope.tableMetadata[i].column[j].name === $scope.resultQueryColumns[index]) {
+                                if($scope.tableMetadata[i].column[j].name.toLowerCase() === $scope.resultQueryColumns[index].toLowerCase()) {
                                     return $scope.tableMetadata[i].column[j].type === STRING_CONST;
                                 }
                             }
@@ -431,6 +432,10 @@
 
                 $scope.toLower = function(text) {
                     return text.toLowerCase();
+                };
+
+                $scope.isIdCol = function(col) {
+                    return col.toLowerCase() === 'id';
                 };
 
                 $scope.openDeleteModal = function(tableName, id, deleteStatement) {
@@ -580,11 +585,11 @@
             <tr data-ng-repeat="result in resultQuery"
                 class="hoverResultRow">
                 <td data-ng-repeat="col in resultQueryColumns">
-                    <span data-ng-show="!result.editMode || col === 'id'"
+                    <span data-ng-show="!result.editMode ||  isIdCol(col)"
                           data-ng-bind="result[col]"></span>
 
                     <input class="form-control"
-                           data-ng-show="result.editMode && col !== 'id'"
+                           data-ng-show="result.editMode && !isIdCol(col)"
                            data-ng-init="result.model[col] = result[col]"
                            data-ng-model="result.model[col]"/>
                 </td>
@@ -612,7 +617,7 @@
                     data-ng-repeat="col in resultQueryColumns">
 
                     <input class="form-control"
-                           data-ng-show="col !== 'id'"
+                           data-ng-show="!isIdCol(col)"
                            data-ng-init="newModel[col] = ''"
                            data-ng-model="newModel[col]"/>
                 </td>

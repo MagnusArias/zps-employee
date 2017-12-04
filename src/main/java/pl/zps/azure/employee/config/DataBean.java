@@ -12,18 +12,5 @@ import javax.annotation.PostConstruct;
 @Component
 public class DataBean {
 
-    @Autowired
-    EmployeeRepository employeeRepository;
 
-    @Autowired
-    DepartmentRepository departmentRepository;
-
-    @PostConstruct
-    public void init() {
-        Department department = new Department("Dzial IT");
-        if(departmentRepository.findAllByName(department.getName()).size() == 0) {
-            department = departmentRepository.save(department);
-            employeeRepository.save(new Employee(department.getId(), "Edward", "Kowalski"));
-        }
-    }
 }
