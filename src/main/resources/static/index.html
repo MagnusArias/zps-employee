@@ -529,7 +529,7 @@
 <!-- GROWL -->
 
 <div class="well"
-     style="height: 50px; width: 100vw; position: fixed; top: 0; left: 0;
+     style="height: 60px; width: 100vw; position: fixed; top: 0; left: 0;
             z-index: 2; box-shadow: 2px 2px 5px 0px rgba(0,0,0,0.75);">
     <div style="display: inline-block; float: right;">
         <span data-ng-show="!isHttps">
@@ -538,10 +538,8 @@
         <span data-ng-show="isHttps">
             <span data-ng-bind="username"></span>
             <button class="btn btn-primary" data-ng-click="logout()">
-                Logout
-                <i class="glyphicon glyphicon-log-out"></i>
+                Logout <i class="glyphicon glyphicon-log-out"></i>
             </button>
-
         </span>
     </div>
 </div>
