@@ -111,28 +111,29 @@
 
                     $scope.isHttps = location.protocol === 'https:';
 
-                    if ($scope.isHttps) {
+                    if($scope.isHttps) {
                         RestService.getUserData()
-                            .then(function (response) {
+                            .then(function(response) {
                                 console.log('user data', response);
                                 $scope.userData = response.data;
-                                for (var i = 0; i < $scope.userData[0]['user_claims'].length; i++) {
+                                for(var i = 0; i < $scope.userData[0]['user_claims'].length; i++) {
                                     console.log('sprawdzam', $scope.userData[0]['user_claims'][i].typ);
-                                    if ($scope.userData[0]['user_claims'][i].typ === "name") {
+                                    if($scope.userData[0]['user_claims'][i].typ === "name") {
                                         $scope.username = $scope.userData[0]['user_claims'][i].val;
                                     }
                                 }
-                            }).catch(function (response) {
+                            }).catch(function(response) {
                             console.log('error with get user data', response);
                         })
                     }
                 };
 
-                $scope.logout = function () {
+                $scope.logout = function() {
                     RestService.logout()
-                        .then(function (response) {
+                        .then(function(response) {
                             console.log('logout', response);
-                        }).catch(function (response) {
+                            window.location.replace("/.auth/logout");
+                        }).catch(function(response) {
                         console.log('problem with logout');
                     })
                 };
@@ -529,16 +530,17 @@
 <!-- GROWL -->
 
 <div class="well"
-     style="height: 60px; width: 100vw; position: fixed; top: 0; left: 0;
-            z-index: 2; box-shadow: 2px 2px 5px 0px rgba(0,0,0,0.75);">
+     style="height: 50px; width: 100vw; position: fixed; top: 0; left: 0;
+            z-index: 2; box-shadow: 2px 2px 5px 0px rgba(0,0,0,0.75); padding: 5px;">
     <div style="display: inline-block; float: right;">
         <span data-ng-show="!isHttps">
             Hello, use HTTPS to log by Auth2 :)
         </span>
         <span data-ng-show="isHttps">
             <span data-ng-bind="username"></span>
-            <button class="btn btn-primary" data-ng-click="logout()">
-                Logout <i class="glyphicon glyphicon-log-out"></i>
+            <button class="btn btn-primary isClickable" data-ng-click="logout()">
+                Logout
+                <i class="glyphicon glyphicon-log-out"></i>
             </button>
         </span>
     </div>
