@@ -20,64 +20,64 @@
 
     <script type="text/javascript">
         angular.module('databaseApp', ['angular.filter', 'ui.bootstrap', 'angular-growl'])
-            .config(['growlProvider', function(growlProvider) {
+            .config(['growlProvider', function (growlProvider) {
                 //growlProvider.onlyUniqueMessages(false);
                 growlProvider.globalDisableCountDown(true);
                 growlProvider.globalPosition('top-center');
             }])
-            .service('GrowlService', function(growl) {
-                this.showGrowl = function(type, msg, time) {
+            .service('GrowlService', function (growl) {
+                this.showGrowl = function (type, msg, time) {
                     var config = {
                         ttl: 3000
                     };
-                    if(!angular.isUndefined(time)) {
+                    if (!angular.isUndefined(time)) {
                         config.ttl = time;
                     }
                     growl[type](msg, config);
                 }
             })
-            .service('RestService', function($http) {
+            .service('RestService', function ($http) {
                 var baseUrl = '';
                 var database = '/database';
 
-                this.getTableName = function() {
+                this.getTableName = function () {
                     return $http.get(baseUrl + database + '/table/list');
                 };
 
-                this.findQuery = function(query) {
+                this.findQuery = function (query) {
                     return $http.get(baseUrl + database + '/query/' + query);
                 };
 
-                this.updateQuery = function(statement) {
+                this.updateQuery = function (statement) {
                     return $http.post(baseUrl + database + '/execute/update', statement);
                 };
 
-                this.deleteQuery = function(statement) {
+                this.deleteQuery = function (statement) {
                     return $http.post(baseUrl + database + '/execute/delete', statement);
                 };
 
-                this.insertQuery = function(statement) {
+                this.insertQuery = function (statement) {
                     return $http.post(baseUrl + database + '/execute/insert', statement);
                 };
 
-                this.getUserData = function() {
+                this.getUserData = function () {
                     return $http.get('/.auth/me');
                 };
 
-                this.logout = function() {
+                this.logout = function () {
                     return $http.get('/.auth/logout');
                 };
             })
-            .service('WebSocketService', function($rootScope) {
+            .service('WebSocketService', function ($rootScope) {
                 var stompClient = null;
 
-                this.connect = function() {
+                this.connect = function () {
                     var socket = new SockJS('/websocket/event');
                     stompClient = Stomp.over(socket);
 
-                    stompClient.connect({}, function(frame) {
+                    stompClient.connect({}, function (frame) {
                         console.log('Connected: ' + frame);
-                        stompClient.subscribe('/database/change', function(messageOutput) {
+                        stompClient.subscribe('/database/change', function (messageOutput) {
                             var msg = JSON.parse(messageOutput.body);
 
                             $rootScope.$broadcast('database-changed', msg);
@@ -87,22 +87,22 @@
                     });
                 };
 
-                this.disconnect = function() {
-                    if(stompClient != null) {
+                this.disconnect = function () {
+                    if (stompClient != null) {
                         stompClient.disconnect();
                     }
                     setConnected(false);
                     console.log("Disconnected");
                 };
 
-                this.sendMessage = function(tableName) {
+                this.sendMessage = function (tableName) {
                     stompClient.send("/database/change", {},
                         JSON.stringify({'tableName': tableName}));
                 };
             })
-            .controller('databaseCtrl', function($scope, RestService, $uibModal, WebSocketService, GrowlService) {
+            .controller('databaseCtrl', function ($scope, RestService, $uibModal, WebSocketService, GrowlService) {
 
-                $scope.initView = function() {
+                $scope.initView = function () {
                     $scope.convertUrl = true;
 
                     refreshTableName();
@@ -111,40 +111,40 @@
 
                     $scope.isHttps = location.protocol === 'https:';
 
-                    if($scope.isHttps) {
+                    if ($scope.isHttps) {
                         RestService.getUserData()
-                            .then(function(response) {
+                            .then(function (response) {
                                 console.log('user data', response);
                                 $scope.userData = response.data;
-                                for(var i = 0; i < $scope.userData[0]['user_claims'].length; i++) {
+                                for (var i = 0; i < $scope.userData[0]['user_claims'].length; i++) {
                                     console.log('sprawdzam', $scope.userData[0]['user_claims'][i].typ);
-                                    if($scope.userData[0]['user_claims'][i].typ === "name") {
+                                    if ($scope.userData[0]['user_claims'][i].typ === "name") {
                                         $scope.username = $scope.userData[0]['user_claims'][i].val;
                                     }
                                 }
-                            }).catch(function(response) {
+                            }).catch(function (response) {
                             console.log('error with get user data', response);
                         })
                     }
                 };
 
-                $scope.logout = function() {
+                $scope.logout = function () {
                     RestService.logout()
-                        .then(function(response) {
+                        .then(function (response) {
                             console.log('logout', response);
-                        }).catch(function(response) {
+                        }).catch(function (response) {
                         console.log('problem with logout');
                     })
                 };
 
-                $scope.$on('$destroy', function() {
+                $scope.$on('$destroy', function () {
                     WebSocketService.disconnect();
                 });
 
-                $scope.$on('database-changed', function(ev, message) {
+                $scope.$on('database-changed', function (ev, message) {
                     console.log('info', message, $scope.tableName);
-                    if(message.tableName.toLowerCase() === $scope.tableName.toLowerCase()) {
-                        if(isEditMode()) {
+                    if (message.tableName.toLowerCase() === $scope.tableName.toLowerCase()) {
+                        if (isEditMode()) {
                             GrowlService.showGrowl('info', 'There is a change. You got edit mode. Refresh manual.', 5000);
                         } else {
                             $scope.findQuery($scope.searchQuery, true);
@@ -156,8 +156,8 @@
                 });
 
                 function isEditMode() {
-                    for(var i = 0; i < $scope.resultQuery.length; i++) {
-                        if($scope.resultQuery[i].editMode) {
+                    for (var i = 0; i < $scope.resultQuery.length; i++) {
+                        if ($scope.resultQuery[i].editMode) {
                             return true;
                         }
                     }
@@ -166,16 +166,16 @@
 
                 function refreshTableName() {
                     RestService.getTableName()
-                        .then(function(response) {
+                        .then(function (response) {
                             console.log('res', response);
                             $scope.tableMetadata = response.data;
-                        }).catch(function(response) {
+                        }).catch(function (response) {
                         console.log('error', response);
                     })
                 }
 
-                $scope.findQuery = function(query, fromDatabaseChange) {
-                    if(query.length > 10) {
+                $scope.findQuery = function (query, fromDatabaseChange) {
+                    if (query.length > 10) {
                         $scope.addMode = false;
                         $scope.newModel = {};
                         $scope.searchQuery = query;
@@ -184,18 +184,18 @@
                         $scope.resultError = null;
                         var q = angular.copy(query);
 
-                        if($scope.convertUrl) {
+                        if ($scope.convertUrl) {
                             q = encodeURIComponent(q);
                         }
 
                         RestService.findQuery(q)
-                            .then(function(response) {
+                            .then(function (response) {
                                 $scope.resultQuery = response.data.results;
 
                                 console.log('cres', $scope.resultQuery);
                                 getQueryData(query);
 
-                                if(response.data.results.length > 0) {
+                                if (response.data.results.length > 0) {
                                     $scope.resultQueryColumns = checkColumns(response.data.results[0]);
                                 } else {
                                     $scope.resultQueryColumns = getColumnsFromMetadata($scope.tableName);
@@ -203,14 +203,14 @@
 
                                 console.log('col', $scope.resultQueryColumns);
 
-                                if(angular.isUndefined(fromDatabaseChange)) {
+                                if (angular.isUndefined(fromDatabaseChange)) {
                                     GrowlService.showGrowl('success', 'Successful operation');
                                 } else {
                                     GrowlService.showGrowl('info', 'Table is refreshed from server changes', 4000);
                                 }
-                            }).catch(function(response) {
+                            }).catch(function (response) {
                             console.log('error', response);
-                            if(response.status === 400) {
+                            if (response.status === 400) {
                                 $scope.resultError = {
                                     error: 'Error',
                                     status: response.status
@@ -224,11 +224,11 @@
                 };
 
                 function getColumnsFromMetadata(tableName) {
-                    for(var i = 0; i < $scope.tableMetadata.length; i++) {
-                        console.log('sprawdzam',$scope.tableMetadata[i].name, tableName)
-                        if($scope.tableMetadata[i].name.toLowerCase() === tableName.toLowerCase()) {
+                    for (var i = 0; i < $scope.tableMetadata.length; i++) {
+                        console.log('sprawdzam', $scope.tableMetadata[i].name, tableName)
+                        if ($scope.tableMetadata[i].name.toLowerCase() === tableName.toLowerCase()) {
                             var cols = [];
-                            for(var j = 0; j < $scope.tableMetadata[i].column.length; j++) {
+                            for (var j = 0; j < $scope.tableMetadata[i].column.length; j++) {
                                 cols.push($scope.tableMetadata[i].column[j].name);
                             }
                             return cols;
@@ -243,7 +243,7 @@
                 function getQueryData(query) {
                     var q = angular.copy(query).replace(/\s/g, '');
                     var finish = q.length;
-                    if(q.indexOf('where') !== -1) {
+                    if (q.indexOf('where') !== -1) {
                         finish = q.indexOf('where');
                     }
                     var table = q.substring(q.indexOf('from') + 4, finish);
@@ -251,7 +251,7 @@
                     $scope.tableName = table;
                 }
 
-                $scope.deleteItem = function(index) {
+                $scope.deleteItem = function (index) {
                     $scope.openDeleteModal($scope.tableName, $scope.resultQuery[index].id, createStatement('delete', index));
                 };
 
@@ -271,7 +271,7 @@
 
                 function statementEndPart(type, index) {
                     var endPart = ' ';
-                    switch(type) {
+                    switch (type) {
                         case 'delete':
                             endPart += statementWherePart(index);
                             break;
@@ -290,11 +290,11 @@
 
                 function statementColumnPart() {
                     var columnPart = '(';
-                    for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
-                        if($scope.resultQueryColumns[i].toLowerCase() !== 'id') {
+                    for (var i = 0; i < $scope.resultQueryColumns.length; i++) {
+                        if ($scope.resultQueryColumns[i].toLowerCase() !== 'id') {
                             columnPart += $scope.resultQueryColumns[i];
 
-                            columnPart += i !== ($scope.resultQueryColumns.length - 1) ?  ', ' : ') ';
+                            columnPart += i !== ($scope.resultQueryColumns.length - 1) ? ', ' : ') ';
                         }
                     }
                     return columnPart;
@@ -302,10 +302,10 @@
 
                 function statementValuesPart() {
                     var valuesPart = 'VALUES (';
-                    for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
-                        if($scope.resultQueryColumns[i].toLowerCase() !== 'id') {
+                    for (var i = 0; i < $scope.resultQueryColumns.length; i++) {
+                        if ($scope.resultQueryColumns[i].toLowerCase() !== 'id') {
                             var value = $scope.newModel[$scope.resultQueryColumns[i]];
-                            if(checkIfColumnIsString(i)) {
+                            if (checkIfColumnIsString(i)) {
                                 value = createWithMarks(value);
                             } else {
                                 value = Number(value);
@@ -313,7 +313,7 @@
 
                             valuesPart += value;
 
-                            valuesPart += i !== ($scope.resultQueryColumns.length - 1) ?  ', ' : ');';
+                            valuesPart += i !== ($scope.resultQueryColumns.length - 1) ? ', ' : ');';
                         }
                     }
                     return valuesPart;
@@ -326,20 +326,20 @@
                 function statementSetPart(index) {
                     var setPart = 'SET ';
                     var item = $scope.resultQuery[index].model;
-                    for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
-                        if($scope.resultQueryColumns[i].toLowerCase() !== 'id') {
+                    for (var i = 0; i < $scope.resultQueryColumns.length; i++) {
+                        if ($scope.resultQueryColumns[i].toLowerCase() !== 'id') {
                             var column = $scope.resultQueryColumns[i];
 
                             column += '=';
 
                             var value = item[$scope.resultQueryColumns[i]];
-                            if(checkIfColumnIsString(i)) {
+                            if (checkIfColumnIsString(i)) {
                                 column += createWithMarks(value);
                             } else {
                                 column += value;
                             }
 
-                            column += i !== ($scope.resultQueryColumns.length - 1) ?  ', ' : ' ';
+                            column += i !== ($scope.resultQueryColumns.length - 1) ? ', ' : ' ';
 
                             setPart += column;
                         }
@@ -350,19 +350,19 @@
                 function statementWherePart(index) {
                     var wherePart = 'WHERE ';
                     var item = $scope.resultQuery[index];
-                    for(var i = 0; i < $scope.resultQueryColumns.length; i++) {
+                    for (var i = 0; i < $scope.resultQueryColumns.length; i++) {
                         var condition = $scope.resultQueryColumns[i];
 
                         condition += '=';
 
                         var value = item[$scope.resultQueryColumns[i]];
-                        if(checkIfColumnIsString(i)) {
+                        if (checkIfColumnIsString(i)) {
                             condition += createWithMarks(value);
                         } else {
                             condition += value;
                         }
 
-                        condition += i !== ($scope.resultQueryColumns.length - 1) ?  ' AND ' : ';';
+                        condition += i !== ($scope.resultQueryColumns.length - 1) ? ' AND ' : ';';
 
                         wherePart += condition;
                     }
@@ -371,10 +371,10 @@
 
                 function checkIfColumnIsString(index) {
                     var STRING_CONST = 12;
-                    for(var i = 0; i < $scope.tableMetadata.length; i++) {
-                        if($scope.tableMetadata[i].name.toLowerCase() === $scope.tableName.toLowerCase()) {
-                            for(var j = 0; j < $scope.tableMetadata[i].column.length; j++) {
-                                if($scope.tableMetadata[i].column[j].name.toLowerCase() === $scope.resultQueryColumns[index].toLowerCase()) {
+                    for (var i = 0; i < $scope.tableMetadata.length; i++) {
+                        if ($scope.tableMetadata[i].name.toLowerCase() === $scope.tableName.toLowerCase()) {
+                            for (var j = 0; j < $scope.tableMetadata[i].column.length; j++) {
+                                if ($scope.tableMetadata[i].column[j].name.toLowerCase() === $scope.resultQueryColumns[index].toLowerCase()) {
                                     return $scope.tableMetadata[i].column[j].type === STRING_CONST;
                                 }
                             }
@@ -384,7 +384,7 @@
                 }
 
                 function statementStartPart(type) {
-                    switch(type) {
+                    switch (type) {
                         case 'delete':
                             return 'DELETE FROM ';
                         case 'edit':
@@ -403,24 +403,24 @@
 //                    }
                 };
 
-                $scope.submitEditItem = function(index) {
+                $scope.submitEditItem = function (index) {
                     var statement = createStatement('edit', index);
 
                     RestService.updateQuery(statement)
-                        .then(function(response) {
+                        .then(function (response) {
                             console.log('res', response);
 
                             informAboutChange(response);
 
                             GrowlService.showGrowl('success', 'Successful operation');
-                        }).catch(function(response) {
+                        }).catch(function (response) {
                         console.log('error', response);
                     });
 
                     resetEditMode(false, index);
                 };
 
-                $scope.discardEditItem = function(index) {
+                $scope.discardEditItem = function (index) {
                     resetEditMode(false, index);
                 };
 
@@ -429,21 +429,21 @@
                     $scope.resultQuery[index].model = {};
                 }
 
-                $scope.addItem = function() {
+                $scope.addItem = function () {
                     resetAddMode(true);
                 };
 
-                $scope.submitNewItem = function() {
+                $scope.submitNewItem = function () {
                     var statement = createStatement('add');
 
                     RestService.insertQuery(statement)
-                        .then(function(response) {
+                        .then(function (response) {
                             console.log('res', response);
 
                             informAboutChange(response);
 
                             GrowlService.showGrowl('success', 'Successful operation');
-                        }).catch(function(response) {
+                        }).catch(function (response) {
                         console.log('error', response);
                     });
 
@@ -451,12 +451,12 @@
                 };
 
                 function informAboutChange(response) {
-                    if(response) {
+                    if (response) {
                         WebSocketService.sendMessage($scope.tableName);
                     }
                 }
 
-                $scope.discardNewItem = function() {
+                $scope.discardNewItem = function () {
                     resetAddMode(false);
                 };
 
@@ -465,26 +465,26 @@
                     $scope.newModel = {};
                 }
 
-                $scope.toLower = function(text) {
+                $scope.toLower = function (text) {
                     return text.toLowerCase();
                 };
 
-                $scope.isIdCol = function(col) {
+                $scope.isIdCol = function (col) {
                     return col.toLowerCase() === 'id';
                 };
 
-                $scope.openDeleteModal = function(tableName, id, deleteStatement) {
+                $scope.openDeleteModal = function (tableName, id, deleteStatement) {
                     $uibModal.open({
                         size: 'lg',
                         templateUrl: 'deleteModal.html',
-                        controller: function($scope, $uibModalInstance, RestService, GrowlService) {
+                        controller: function ($scope, $uibModalInstance, RestService, GrowlService) {
 
                             $scope.tableName = tableName;
                             $scope.id = id;
 
-                            $scope.submit = function() {
+                            $scope.submit = function () {
                                 RestService.deleteQuery(deleteStatement)
-                                    .then(function(response) {
+                                    .then(function (response) {
                                         console.log('res', response);
 
                                         informAboutChange(response);
@@ -492,7 +492,7 @@
                                         GrowlService.showGrowl('success', 'Successful operation');
 
                                         $uibModalInstance.close();
-                                    }).catch(function(response) {
+                                    }).catch(function (response) {
                                     console.log('error', response);
 
                                     GrowlService.showGrowl('error', 'Error. Something gone wrong.');
@@ -500,7 +500,7 @@
 
                             };
 
-                            $scope.cancel = function() {
+                            $scope.cancel = function () {
                                 $uibModalInstance.dismiss('cancel');
                             };
                         }
@@ -537,10 +537,11 @@
         </span>
         <span data-ng-show="isHttps">
             <span data-ng-bind="username"></span>
-            <span class="isClickable" data-ng-click="logout()">
+            <button class="btn btn-primary" data-ng-click="logout()">
                 Logout
                 <i class="glyphicon glyphicon-log-out"></i>
-            </span>
+            </button>
+
         </span>
     </div>
 </div>
@@ -555,7 +556,8 @@
         <div class="panel-body" uib-collapse="isCollapsedTables">
             <div data-ng-repeat="table in tableMetadata">
                 <button class="btn btn-primary"
-                        data-ng-click="findQuery('select * from ' + toLower(table.name))">Show</button>
+                        data-ng-click="findQuery('select * from ' + toLower(table.name))">Show
+                </button>
                 <span data-ng-bind="table.name" style="font-weight: bold;"></span>
                 <ul data-ng-repeat="column in table.column">
                     <li data-ng-bind="column.name"></li>
@@ -595,16 +597,16 @@
         <div data-ng-show="resultError">
             <span style="font-weight: bold">Error: </span>
             <span data-ng-bind="resultError.error"></span>
-            <br />
+            <br/>
             <span style="font-weight: bold">HTTP Status: </span>
             <span data-ng-bind="resultError.status"></span>
-            <br />
+            <br/>
             <span data-ng-show="resultError.exception" style="font-weight: bold">Exception: </span>
             <span data-ng-bind="resultError.exception"></span>
-            <br />
+            <br/>
             <span data-ng-show="resultError.message" style="font-weight: bold">Message: </span>
             <span data-ng-bind="resultError.message"></span>
-            <br />
+            <br/>
         </div>
         <!-- ERROR RESULTS -->
 
@@ -639,22 +641,27 @@
                 <td>
                     <button class="btn btn-info"
                             data-ng-show="result.editMode"
-                            data-ng-click="submitEditItem($index)">Submit changes</button>
+                            data-ng-click="submitEditItem($index)">Submit changes
+                    </button>
                     <button class="btn btn-warning"
                             data-ng-show="result.editMode"
-                            data-ng-click="discardEditItem($index)">Discard changes</button>
+                            data-ng-click="discardEditItem($index)">Discard changes
+                    </button>
                     <button class="btn btn-info"
                             data-ng-show="!result.editMode"
-                            data-ng-click="editItem($index)">Edit</button>
+                            data-ng-click="editItem($index)">Edit
+                    </button>
                     <button class="btn btn-danger"
-                            data-ng-click="deleteItem($index)">Delete</button>
+                            data-ng-click="deleteItem($index)">Delete
+                    </button>
                 </td>
             </tr>
             <tr style="background: #FFF;">
                 <td colspan="100%"
                     data-ng-show="!addMode">
                     <button class="btn btn-primary"
-                            data-ng-click="addItem()">Add</button>
+                            data-ng-click="addItem()">Add
+                    </button>
                 </td>
                 <td data-ng-show="addMode"
                     data-ng-repeat="col in resultQueryColumns">
@@ -666,9 +673,11 @@
                 </td>
                 <td data-ng-show="addMode">
                     <button class="btn btn-info"
-                            data-ng-click="submitNewItem()">Add row</button>
+                            data-ng-click="submitNewItem()">Add row
+                    </button>
                     <button class="btn btn-warning"
-                            data-ng-click="discardNewItem()">Discard row</button>
+                            data-ng-click="discardNewItem()">Discard row
+                    </button>
                 </td>
             </tr>
         </table>
