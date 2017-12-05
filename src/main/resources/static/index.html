@@ -64,7 +64,7 @@
                 var stompClient = null;
 
                 this.connect = function() {
-                    var socket = new SockJS('/websocket/event');
+                    var socket = new SockJS('wss://czacior.azurewebsites.net/websocket/event');
                     stompClient = Stomp.over(socket);
 
                     stompClient.connect({}, function(frame) {
