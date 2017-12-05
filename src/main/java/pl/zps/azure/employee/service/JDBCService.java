@@ -14,12 +14,9 @@ import java.util.List;
 @Service
 public class JDBCService {
 
-    // private final String url = "jdbc:mysql://localhost:3306/employee_db";
-
     String hostName = "project-server.database.windows.net";
     String dbName = "db-project";
-    //String user = "superuser";
-    //String password = "Haslo12345";
+
     private final String url = String.format("jdbc:sqlserver://%s:1433;database=%s;user=superuser;password=Haslo12345;encrypt=true;hostNameInCertificate=*.database.windows.net;loginTimeout=30;", hostName, dbName);
 
     @Value("${jdbc.mysql.username}")

@@ -1,6 +1,5 @@
 package pl.zps.azure.employee.model;
 
-
 import lombok.Getter;
 import lombok.Setter;
 

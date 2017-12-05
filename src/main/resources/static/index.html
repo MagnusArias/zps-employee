@@ -533,7 +533,7 @@
         <input type="text"
                id="searchQueryInput"
                class="form-control"
-               data-ng-init="searchQuery = 'select * from test_messages'"
+               data-ng-init="searchQuery = 'select * from Employee'"
                placeholder="select * from Employee"
                data-ng-model="searchQuery"/>
     </div>
@@ -542,6 +542,7 @@
     <div class="col-lg-4 col-md-4 col-sm-4 col-xs-4">
         <button class="btn btn-primary" data-ng-click="findQuery(searchQuery)">Search</button>
         <input type="checkbox" data-ng-model="convertUrl"/>Convert to URI
+        <button class="btn btn-danger" data-ng-click="findQuery(searchQuery)">Delete table (not working)</button>
     </div>
 
 
