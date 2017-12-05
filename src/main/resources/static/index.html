@@ -59,12 +59,20 @@
                 this.insertQuery = function(statement) {
                     return $http.post(baseUrl + database + '/execute/insert', statement);
                 };
+
+                this.getUserData = function() {
+                    return $http.get('/.auth/me');
+                };
+
+                this.logout = function() {
+                    return $http.get('/.auth/logout');
+                };
             })
             .service('WebSocketService', function($rootScope) {
                 var stompClient = null;
 
                 this.connect = function() {
-                    var socket = new SockJS('wss://czacior.azurewebsites.net/websocket/event');
+                    var socket = new SockJS('/websocket/event');
                     stompClient = Stomp.over(socket);
 
                     stompClient.connect({}, function(frame) {
@@ -100,6 +108,33 @@
                     refreshTableName();
 
                     WebSocketService.connect();
+
+                    $scope.isHttps = location.protocol === 'https:';
+
+                    if($scope.isHttps) {
+                        RestService.getUserData()
+                            .then(function(response) {
+                                console.log('user data', response);
+                                $scope.userData = response.data;
+                                for(var i = 0; i < $scope.userData[0]['user_claims'].length; i++) {
+                                    console.log('sprawdzam', $scope.userData[0]['user_claims'][i].typ);
+                                    if($scope.userData[0]['user_claims'][i].typ === "name") {
+                                        $scope.username = $scope.userData[0]['user_claims'][i].val;
+                                    }
+                                }
+                            }).catch(function(response) {
+                            console.log('error with get user data', response);
+                        })
+                    }
+                };
+
+                $scope.logout = function() {
+                    RestService.logout()
+                        .then(function(response) {
+                            console.log('logout', response);
+                        }).catch(function(response) {
+                        console.log('problem with logout');
+                    })
                 };
 
                 $scope.$on('$destroy', function() {
@@ -135,8 +170,8 @@
                             console.log('res', response);
                             $scope.tableMetadata = response.data;
                         }).catch(function(response) {
-                            console.log('error', response);
-                        })
+                        console.log('error', response);
+                    })
                 }
 
                 $scope.findQuery = function(query, fromDatabaseChange) {
@@ -174,17 +209,17 @@
                                     GrowlService.showGrowl('info', 'Table is refreshed from server changes', 4000);
                                 }
                             }).catch(function(response) {
-                                console.log('error', response);
-                                if(response.status === 400) {
-                                    $scope.resultError = {
-                                        error: 'Error',
-                                        status: response.status
-                                    }
-                                } else {
-                                    $scope.resultError = response.data;
+                            console.log('error', response);
+                            if(response.status === 400) {
+                                $scope.resultError = {
+                                    error: 'Error',
+                                    status: response.status
                                 }
-                                console.log('err', $scope.resultError);
-                            })
+                            } else {
+                                $scope.resultError = response.data;
+                            }
+                            console.log('err', $scope.resultError);
+                        })
                     }
                 };
 
@@ -363,8 +398,8 @@
 //                    if($scope.resultQuery[index].editMode) {
 //                        $scope.resultQuery[index].editMode = false;
 //                    } else {
-                        $scope.resultQuery[index].editMode = true;
-                        $scope.resultQuery[index].model = angular.copy($scope.resultQuery[index]);
+                    $scope.resultQuery[index].editMode = true;
+                    $scope.resultQuery[index].model = angular.copy($scope.resultQuery[index]);
 //                    }
                 };
 
@@ -379,8 +414,8 @@
 
                             GrowlService.showGrowl('success', 'Successful operation');
                         }).catch(function(response) {
-                            console.log('error', response);
-                        });
+                        console.log('error', response);
+                    });
 
                     resetEditMode(false, index);
                 };
@@ -458,10 +493,10 @@
 
                                         $uibModalInstance.close();
                                     }).catch(function(response) {
-                                        console.log('error', response);
+                                    console.log('error', response);
 
-                                        GrowlService.showGrowl('error', 'Error. Something gone wrong.');
-                                    });
+                                    GrowlService.showGrowl('error', 'Error. Something gone wrong.');
+                                });
 
                             };
 
@@ -497,8 +532,16 @@
      style="height: 50px; width: 100vw; position: fixed; top: 0; left: 0;
             z-index: 2; box-shadow: 2px 2px 5px 0px rgba(0,0,0,0.75);">
     <div style="display: inline-block; float: right;">
-        Logout
-        <i class="glyphicon glyphicon-log-out"></i>
+        <span data-ng-show="!isHttps">
+            Hello, use HTTPS to log by Auth2 :)
+        </span>
+        <span data-ng-show="isHttps">
+            <span data-ng-bind="username"></span>
+            <span class="isClickable" data-ng-click="logout()">
+                Logout
+                <i class="glyphicon glyphicon-log-out"></i>
+            </span>
+        </span>
     </div>
 </div>
 <!-- HEADER MENU -->
@@ -533,7 +576,7 @@
         <input type="text"
                id="searchQueryInput"
                class="form-control"
-               data-ng-init="searchQuery = 'select * from Employee'"
+               data-ng-init="searchQuery = 'select * from test_messages'"
                placeholder="select * from Employee"
                data-ng-model="searchQuery"/>
     </div>
@@ -542,7 +585,6 @@
     <div class="col-lg-4 col-md-4 col-sm-4 col-xs-4">
         <button class="btn btn-primary" data-ng-click="findQuery(searchQuery)">Search</button>
         <input type="checkbox" data-ng-model="convertUrl"/>Convert to URI
-        <button class="btn btn-danger" data-ng-click="findQuery(searchQuery)">Delete table (not working)</button>
     </div>
 
 
