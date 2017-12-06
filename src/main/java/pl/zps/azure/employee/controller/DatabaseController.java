@@ -12,13 +12,10 @@ import java.util.List;
 @RequestMapping("/database")
 public class DatabaseController {
 
-    final TableService tableService;
-
     final JDBCService jdbcService;
 
     @Autowired
-    public DatabaseController(TableService tableService, JDBCService jdbcService) {
-        this.tableService = tableService;
+    public DatabaseController( JDBCService jdbcService) {
         this.jdbcService = jdbcService;
     }
 
