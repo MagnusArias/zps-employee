@@ -1,13 +1,9 @@
 package pl.zps.azure.employee.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-import pl.zps.azure.employee.config.SessionHandler;
-import pl.zps.azure.employee.model.Change;
 import pl.zps.azure.employee.model.TableMetadata;
 import pl.zps.azure.employee.service.JDBCService;
-import pl.zps.azure.employee.service.TableService;
 
 import java.sql.*;
 import java.util.List;
@@ -20,14 +16,10 @@ public class DatabaseController {
 
     final JDBCService jdbcService;
 
-    final
-    SessionHandler sessionHandler;
-
     @Autowired
-    public DatabaseController(TableService tableService, JDBCService jdbcService, SessionHandler sessionHandler) {
+    public DatabaseController(TableService tableService, JDBCService jdbcService) {
         this.tableService = tableService;
         this.jdbcService = jdbcService;
-        this.sessionHandler = sessionHandler;
     }
 
     @GetMapping("/table/list")

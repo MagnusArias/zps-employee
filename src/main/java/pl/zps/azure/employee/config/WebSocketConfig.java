@@ -24,25 +24,4 @@ public class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/websocket/event").withSockJS();
     }
 
-    @Bean
-    public PresenceChannelInterceptor presenceChannelInterceptor() {
-        return new PresenceChannelInterceptor();
-    }
-
-    @Bean
-    public SessionHandler sessionHandler() {
-        return new SessionHandler();
-    }
-
-    @Override
-    public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.setInterceptors(presenceChannelInterceptor());
-    }
-
-    @Override
-    public void configureClientOutboundChannel(ChannelRegistration registration) {
-        registration.taskExecutor().corePoolSize(8);
-        registration.setInterceptors(presenceChannelInterceptor());
-    }
-
 }
